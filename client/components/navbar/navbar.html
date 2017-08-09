@@ -1,0 +1,28 @@
+<div class="navbar navbar-default navbar-static-top">
+  <div class="container">
+    <div class="navbar-header">
+      
+            <img  class="icon-bar" style="padding-top:5%" src="assets/images/bookmark.png" >
+       
+          <a  class="navbar-brand">Web browser </a>
+    </div>
+    <div uib-collapse="$ctrl.isCollapsed" class="navbar-collapse collapse" id="navbar-main">
+      <ul class="nav navbar-nav">
+        
+        <li ng-show="$ctrl.isAdmin()" ui-sref-active="active"><a ui-sref="admin">Gestion comptes utilisateurs</a></li>
+      </ul>
+
+      <ul class="nav navbar-nav navbar-right">
+        <li ng-hide="$ctrl.isLoggedIn()" ui-sref-active="active"><a ui-sref="signup">S'enregistrer</a></li>
+        <li ng-hide="$ctrl.isLoggedIn()" ui-sref-active="active"><a ui-sref="login">Se connecter</a></li>
+        <li ng-show="$ctrl.isLoggedIn()" ui-sref-active="active"><a ui-sref="applications">Mes applications</a></li>
+        <li ng-show="$ctrl.isLoggedIn()" ui-sref-active="active"><a ui-sref="createApp">Créer une application</a></li>
+
+
+        <li ng-show="$ctrl.isLoggedIn()"><p class="navbar-text">Bonjour {{ $ctrl.getCurrentUser().name }} !</p> </li>
+        <li ng-show="$ctrl.isLoggedIn()" ui-sref-active="active"><a ui-sref="settings"><span class="glyphicon glyphicon-cog"></span></a></li>
+        <li ng-show="$ctrl.isLoggedIn()"><a   ui-sref="logout">Se déconnecter</a></li>
+      </ul>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,2108 @@
+/*
+* Personalisation des fonctions jQuery
+* Voir http://docs.jquery.com/Plugins/Authoring
+*/
+//(function($){
+	/*
+	* Personalisation de la fonction progressbar
+	* width: largeur du conteneur
+	* height: hauteur du conteneur
+	* value: valeur du progressbar (en %)
+	* center : boolean s'il est a true, alors on centre le conteneur
+	*/
+//	$.fn.progressbarISTA = function(width,height,value) {
+//		if ( isNaN(value) || value>100 ) value=100;
+//		if(value<0) value=0;
+//		//$(this) represente le conteneur
+//		$(this).css({width: width, height:height, position:"absolute"});
+//		$(this).progressbar({value: value});//fonction progressbar originale. elle cree un bloc <div> a l'interieur du conteneur
+//
+//		var pb=$("div",this);//Recuperer le bloc du progressbar contenu dans $(this) (voir http://api.jquery.com/jQuery/)
+//		pb.css({height:"100%", position:"absolute", borderStyle:"none", borderWidth:"0px", margin:"0px", padding:"0px", left:"0px", top:"0px"});
+//
+//		//Centrer le conteneur
+//		$(this).css({left:"385px"});
+//	};
+//})( jQuery );
+
+/**
+ * Combobox
+ * */
+// [KV] DIRTYFLAG / PART 1
+var __ignoreDirtyFlag = false;
+$(document).ready(function () {
+	/* [KV] Gestion de code javascript dans les a.href (sachant que le plugin intro.js génère ce type de code)
+	 * Erreur causée : Pour les navigateurs IE<11, lors de la présence de code javascript dans l'attribut a.href,
+	 * la méthode window.onbeforeunload est invoquée.
+	* http://stackoverflow.com/questions/14847407/window-onbeforeunload-fires-in-ie-for-partial-postback-events
+	* */
+	// [KV] DIRTYFLAG / PART 2
+	 if ($.browser.msie) { // Si on est sur IE...
+	        $(document).on('click','a[href^="javascript:"]', function () {
+	            __ignoreDirtyFlag = true;
+	            return;
+	        });
+    }
+
+});
+(function( $ ) {
+	
+	// Voir ticket #2445
+	touchDevicesSelectHandler();
+
+	try{
+
+	$.widget( "ui.combobox", {
+		_create: function() {
+			var self = this,
+				select = this.element.hide(),
+				selected = select.children( ":selected" ),
+				value = selected.val() ? $.trim(selected.text()) : "";
+			var input = this.input = $( "<input id='"+select.attr("id")+"_input'>" )
+				.insertAfter( select )
+				.val( value )
+				.autocomplete({
+					delay: 0,
+					minLength: 0,
+					source: function( request, response ) {
+						// [KV] Optimisation traitement pour éviter les gros freeze IE -> http://stackoverflow.com/questions/5073612/jquery-ui-autocomplete-combobox-very-slow-with-large-select-lists
+						var regMatched = "(?![^&;]+;)(?!<[^<>]*)("+	$.ui.autocomplete.escapeRegex(request.term) +")(?![^<>]*>)(?![^&;]+;)";
+						var matcher = new RegExp( $.ui.autocomplete.escapeRegex(request.term), "i" );
+						var select_el = select.get(0); // get dom element
+						var rep = new Array(); // response array
+					    var maxRepSize = $.browser.name == 'msie' ? 100 : 300; // maximum response size because IE + windows XP (1Go RAM) is limited in power :)
+					    // simple loop for the options
+					    for (var i = 0; i < select_el.length; i++) {
+					        var text = $.trim(select_el.options[i].text);
+					        if ( select_el.options[i].value && ( !request.term || matcher.test(text) ) ){
+					            // add element to result array
+					            rep.push({
+					                label: text.replace(
+											new RegExp(regMatched, "gi"
+											), "<strong>$1</strong>" ),
+					                value: text,
+					                option: select_el.options[i]
+					            });
+					        }
+					        if ( rep.length > maxRepSize ) {
+					            rep.push({
+					                label: "...affinez votre recherche",
+					                value: "",
+					                option: ""
+					            });
+					            break;
+					        }
+					    }
+					    response( rep );
+					},
+					select: function( event, ui ) {
+						ui.item.option.selected = true;
+						self._trigger( "selected", event, {
+							item: ui.item.option
+						});
+					},
+					change: function( event, ui ) {
+						if ( !ui.item ) {
+							var matcher = new RegExp( "^" + $.ui.autocomplete.escapeRegex( $(this).val() ) + "$", "i" ),
+								valid = false;
+							select.children( "option" ).each(function() {
+								if ( $( this ).text().match( matcher ) ) {
+									this.selected = valid = true;
+									return false;
+								}
+							});
+							if ( !valid ) {
+								// remove invalid value, as it didn't match anything
+								$( this ).val( "" );
+								//select.val( "" );
+								// [KV] On sélectionne par défaut le premier item sinon, l'ecrasement de valeur n'est pas effectué du côté struts
+								select.val( select.children('option:first-child').val() );
+								if(input.data( "autocomplete" )){
+									input.data( "autocomplete" ).term = "";
+								}
+								return false;
+							}
+						}
+					},
+					create: function( event, ui ) {
+//						select.children( "option" ).each(function() {
+//							$( this ).text($.trim($( this ).text()));
+//						});
+					}
+				})
+				.addClass( "ui-widget ui-widget-content" )
+				.click(function() {
+				// close if already visible
+				if ( input.autocomplete( "widget" ).is( ":visible" ) ) {
+					input.autocomplete( "close" );
+					return;
+				}
+
+				// work around a bug (likely same cause as #5265)
+				//$( this ).blur(); //Jimmy: Mis en commentaire car posait un problème sous IE.
+
+				// pass empty string as value to search for, displaying all results
+				input.autocomplete( "search", "" );
+				input.focus();
+				});
+			//[JT]Obsolete .data( "autocomplete" )._renderItem = function( ul, item ) {
+			input.data( "ui-autocomplete" )._renderItem = function( ul, item ) {
+				return $( "<li></li>" )
+					.data( "ui-autocomplete-item", item )//[JT]Obsolete .data( "item.autocomplete", item )
+					.append( "<a>" + item.label + "</a>" )
+					.appendTo( ul );
+			};
+		},
+
+		destroy: function() {
+			this.input.remove();
+			this.element.show();
+			$.Widget.prototype.destroy.call( this );
+		}
+	});
+	} catch (e) {
+		//console.log("Une erreur est survenue:"+e);
+		$('#loading-fade').hide();
+		$('#loading').hide();
+	}
+})( jQuery );
+//FIN - Personalisation des fonctions jQuery
+
+// [KV] Optimisation page, prefetch -> http://www.catswhocode.com/blog/mastering-html5-prefetching
+//create an object named "app" which we can define methods on
+var app = {
+    // returns an array of each url to prefetch
+    prefetchLinks: function(){
+        // returns an array of each a.prefetch link's href
+        var hrefs = $("a.prefetch").map(function(index, domElement){
+            return $(this).attr("href");
+        });
+        // returns the array of hrefs without duplicates
+        return $.unique(hrefs);
+    },
+
+    // [KV] + prerender returns an array of each url to prerender
+    prerenderLinks: function(){
+        // returns an array of each a.prefetch link's href
+        var hrefs = $("a.prerender").map(function(index, domElement){
+            return $(this).attr("href");
+        });
+        // returns the array of hrefs without duplicates
+        return $.unique(hrefs);
+    },
+
+    // adds a link tag to the document head for each of prefetchLinks()
+    addPrefetchTags: function(){
+        // for each prefetchLinks() ...
+        this.prefetchLinks().each(function(index,Element){
+            // create a link element...
+            $("<link />", {
+                // with rel=prefetch and href=Element...
+                rel: "prefetch", href: Element
+                // and append it to the end of the document head
+            }).appendTo("head");
+        });
+    },
+ // adds a link tag to the document head for each of prefetchLinks()
+    addPrerenderTags: function(){
+        // for each prefetchLinks() ...
+        this.prerenderLinks().each(function(index,Element){
+            // create a link element...
+            $("<link />", {
+                // with rel=prefetch and href=Element...
+                rel: "prerender", href: Element
+                // and append it to the end of the document head
+            }).appendTo("head");
+        });
+    }
+
+};
+//when the document is ready...
+jQuery(function(){
+  // call the method we defined above.
+    app.addPrefetchTags();
+    app.addPrerenderTags(); // [KV] Add prerender tag
+});
+
+// Fin prefetch/prerender
+
+$(function () {
+
+	//[KV] Mise en ellipse des text-overflow + animation sur mouseOver(style_back.css)
+
+	var text_marquee = $('span.text-marquee');
+	if(text_marquee){
+//		var ie8hacked = false;
+		jQuery.each(text_marquee, function(i,v){
+			var span = $(v);
+			var minTextWidth = 55;
+			if(text_marquee.parent().hasClass('deroulable')) { // pour les éléments du menu de gauche
+				minTextWidth = 24;
+			}
+			if(span.hasClass('min-width-200')){
+				minTextWidth = 24;
+			}
+			if(span.text().length >= minTextWidth){
+//				if(!ie8hacked){
+//					$('body').prepend(
+//					"<!--[if IE 8]>	<style>	.text-marquee:hover /* ie8 hack */	{		overflow:visible;		white-space:normal;	}	</style>	<![endif]-->"
+//					);
+//				}
+				var width = span.width();
+				span.hover(function(){
+					// onHoverIn
+					if(span.scrollLeft){
+						span.css({'text-overflow':'clip'});
+						span.animate({'scrollLeft':'+='+width+'px'}, 500);
+					}
+				}, function(){
+					//onHoverOut
+					if(span.scrollLeft){
+						span.css({'text-overflow':'ellipsis'});
+						span.animate({'scrollLeft':'-='+width+'px'}, 500);
+					}
+				});
+			}
+		});
+	}
+
+
+
+
+	// [KV] Interdiction de CC
+	$("input.nocopy").on('copy', function() {
+		return false;
+	}).on('cut', function() {
+		return false;
+	});
+	$("input.nopaste").on('paste', function() {
+		$(this).val('');
+	    return false;
+	});
+
+	//------
+	//--DEFINITION DES OPTIONS GLOBALES DE HIGHCHART
+	//------
+	Highcharts.setOptions({
+		lang: {
+			printButtonTitle : 'Imprimer le graphique',
+			exportButtonTitle : 'Exporter le graphique...',
+			downloadPNG : 'Télécharger l\'image PNG',
+			downloadJPEG : 'Télécharger l\'image JPEG',
+			downloadPDF : 'Télécharger au format PDF',
+			downloadSVG : 'Télécharger l\'image SVG',
+			rangeSelectorFrom : 'De',
+			rangeSelectorTo : 'à',
+			loading: 'Chargement en cours...',
+			rangeSelectorZoom: 'Visualisation: ',
+			resetZoom: 'Réinitialiser Zoom',
+			resetZoomTitle: '',
+			//resetZoomTitle: 'Réinitialiser le zoom',[JT] Conflit avec jquery ui tooltip.
+			months: ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin','Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'],
+			weekdays: ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'],
+			shortMonths: ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Jui', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
+		}
+	});
+
+	/* [KV] Redéfinition des fleches de navigation non compatible avec ChromeMobile et autres */
+	if($.fn.glDatePicker){
+		$.fn.glDatePicker.defaults.prevArrow = '<div class="fleche-grise-gauche"/>';
+		$.fn.glDatePicker.defaults.nextArrow = '<div class="fleche-grise-droite"/>';
+	}
+});
+//Les fonction dans le scope global
+
+/*
+* Navigation
+*/
+function navigation(idPage) {
+	window.location.href="../navigation.do?idPage="+idPage;//Rajout ../ au lieu de ./ pour faire fonctionner extenseau qui ce trouve dans /extenseau/..
+}
+
+
+var menuEnCours="";//Menu en cours
+/**
+ * Gestion appel du menu.
+ * TODO [JT] Il est tout a fait possible ici d'intercepter un cas particulier et de lancer une autre action.
+ */
+function menu(idMenu) {
+	if(idMenu!=null && idMenu!=""){
+//		if(idMenu.search('performanceEnergetique')>0){
+//			//data={"choixOnglet" : "ELECTRICITE"};
+//		}
+//		if (idMenu.search('performanceEnergetique')>0 || idMenu.search('analyseConso')>0) {
+//			if (idMenu.search('performanceEnergetique')>0) {
+//				data={"choixOnglet" : "ELECTRICITE"};
+//			} else {
+//				data={"choixOnglet" : "EAU"};
+//			}
+//			//console.log(data);
+//			$.ajax({
+//				url: "../extenseau/onglet.do?dispatch=majChoixOnglet",
+//				data: data,
+//				statusCode: {
+//					200: function(){
+//						menuEnCours=idMenu;
+//						window.location.href="../menu.do?id="+idMenu;
+//					}
+//				}
+//			});
+//		} else {
+			menuEnCours=idMenu;
+			/*Cas particulier de la page d'index et d'index à la demande*/
+			//if(idMenu.indexOf("_index")>-1)return false;
+			//if(idMenu.indexOf("_amm")>-1)return false;
+			window.location.href="../menu.do?id="+idMenu;//Rajout ../ au lieu de ./ pour faire fonctionner extenseau qui ce trouve dans /extenseau/..
+//		}
+	}
+}
+
+/*
+* Gestion des touches de pagination
+*/
+function touches(event) {
+	if ($('#page').is(':visible')) {
+		//Si on est dans une page avec une div combobox_extenseau
+		if($('#combobox_extenseau').size()>0){
+			if ($('#pagination').size()>0) {
+				if		($('li#pagePrecedente').size()>0 && event.which == 33)	precedent();
+				else if	($('li#pageSuivante').size()>0 && event.which == 34)	suivant();
+			}
+			//Si on presse la touche entrée
+			if (event.which == 13){
+				//On rempli le contenu du select de la combobox avec le contenu de l'input
+				if($('#choixCodeImmeuble_input').size()>0) $('#choixCodeImmeuble').val($('#choixCodeImmeuble_input').val());//Pour listeUEX,listeLogement,listeCompteur
+				if($('#choixNumeroUEX_input').size()>0) $('#choixNumeroUEX').val($('#choixNumeroUEX_input').val()); //listeLogement,listeCompteur
+				if($('#choixTypeLogement_input').size()>0) $('#choixTypeLogement').val($('#choixTypeLogement_input').val());//listeLogement,listeCompteur
+				if($('#choixTypeCompteur_input').size()>0) $('#choixTypeCompteur').val($('#choixTypeCompteur_input').val());//listeLogement,listeCompteur
+				if($('#listeCriteresAnalyse_input').size()>0) $('#listeCriteresAnalyse').val($('#listeCriteresAnalyse_input').val());//listeLogement,listeCompteur
+				if($('#listeCriteresAnalyseIndex_input').size()>0) $('#listeCriteresAnalyseIndex').val($('#listeCriteresAnalyseIndex_input').val());//listeLogement,listeCompteur
+				if($('#choixCodeAgenceExploitation_input').size()>0) $('#choixCodeAgenceExploitation').val($('#choixCodeAgenceExploitation_input').val());//Pour listeUEX
+				//On execute la recherche
+				$('#btnValider').focus();
+			}
+		//Dans les autres pages
+		}else{
+			if ($('#pagination').size()>0) {
+				if		($('li#pagePrecedente').size()>0 && event.which == 33)	precedent();
+				else if	($('li#pageSuivante').size()>0 && event.which == 34)	suivant();
+				else if (event.which == 13) global.soumettre("rechercher");
+			}
+		}
+	} else if($('#section').is(':visible')) { //[KV] Intégration Fleishman
+		if ($('#pagination').size()>0) {
+			if	($('a#pagePrecedente').size()>0 && event.which == 33)	precedent();
+			else if	($('a#pageSuivante').size()>0 && event.which == 34)	suivant();
+			else if (event.which == 13) global.soumettre("rechercher");
+		}
+	}
+}
+
+/*
+*Affichage de la page précédente
+*/
+function precedent() {
+	document.forms[0].elements["defilement.choixPage"].value = "PagePrecedente";
+	global.soumettre("defiler");
+}
+function precedentChauffage() {
+	document.forms[0].elements["defilementChauffage.choixPage"].value = "PagePrecedente";
+	global.soumettre("defiler");
+}
+function precedentDAAF() {
+	document.forms[0].elements["defilementDAAF.choixPage"].value = "PagePrecedente";
+	global.soumettre("defiler");
+}
+
+/*
+* Affichage de la page suivante
+*/
+function suivant() {
+	document.forms[0].elements["defilement.choixPage"].value = "PageSuivante";
+	global.soumettre("defiler");
+
+}
+
+function suivantChauffage() {
+	document.forms[0].elements["defilementChauffage.choixPage"].value = "PageSuivante";
+	global.soumettre("defiler");
+
+}
+
+function suivantDAAF() {
+	document.forms[0].elements["defilementDAAF.choixPage"].value = "PageSuivante";
+	global.soumettre("defiler");
+}
+
+
+/*
+* Sauvegarde l'index de l'entité à traiter
+*/
+function setPage(id) {
+		document.forms[0].elements["defilement.choixPage"].value = ""+id;
+		global.soumettre("defiler");
+}
+function setPageChauffage(id) {
+	document.forms[0].elements["defilementChauffage.choixPage"].value = ""+id;
+	global.soumettre("defiler");
+}
+function setPageDAAF(id) {
+	document.forms[0].elements["defilementDAAF.choixPage"].value = ""+id;
+	global.soumettre("defiler");
+}
+
+/*
+* Paramétrage de l'ajax
+*/
+$.ajaxSetup({
+	type: "GET",
+	dataType:"json",
+	global: false,
+	statusCode: {
+		    403: function(XMLHttpRequest) {
+		    	window.location.href=XMLHttpRequest.getResponseHeader('Content-Location'); //Voir Authentification Filtre
+		    },
+		    500: function() {
+				window.location.href="../public/accueil.do?dispatch=erreurInterne";
+		    }
+		  },
+	error:	function (XMLHttpRequest, textStatus, errorThrown){
+				//alert("Une erreur inconnue est survenue. Réessayez!\n"+textStatus);
+			}
+
+});
+
+/*
+* Vérification du Navigateur
+* Cette fonction retourne un code retour:
+* Si codeRetour==0 -> aucune erreur n'est detectee
+* Si codeRetour==1 -> navigateur incompatible
+* Si codeRetour==2 -> le navigateur n'accepte pas les cookies
+* Si codeRetour==3 -> le navigateur ne supporte pas flash
+*/
+function verifierNavigateur() {
+	var retour =-1;
+
+	//Résolution de l'écran
+	var hauteurEcran = screen.height;
+	var largeurEcran = screen.width;
+
+	var nomNavigateur = $.browser.name;//Nom du navigateur
+	var versionNavigateur = $.browser.version.substring(0,3);//Version du navigateur
+
+	//Liste des navigateurs compatibles
+	var navigateursCompatibles=['chrome','firefox', 'safari', 'opera', 'msie'];
+	var navigateursCompatiblesURL= ['http://www.google.com/chrome?hl=fr','http://www.mozilla-europe.org/fr/firefox/','http://www.apple.com/fr/safari/','http://www.opera.com/browser/','http://www.microsoft.com/france/windows/internet-explorer/'];
+
+	var navigateurCompatible=$.inArray(nomNavigateur,navigateursCompatibles) != -1;//Tester la compatibilite du navigateur (Voir http://api.jquery.com/jQuery.inArray/)
+	if(nomNavigateur=='msie' && versionNavigateur<8){
+		var userAgent=navigator.userAgent;
+		//console.log(userAgent);
+		//On verifie ici que ce n'est pas IE8 en mode compatabilité qui parcours le site(et dont la version de navigateur est defini à IE7).
+		if(userAgent.indexOf("Trident/4") == -1){navigateurCompatible=false;}
+	}
+	// A partir de IE11, le browser name MSIE disparait, il faut effectuer les tests sur la version du userAgent Trident
+	var chaineTrident = navigator.userAgent.match(/Trident\/\d+\.\d+/g);
+	if(null != chaineTrident && chaineTrident.length > 0){
+		var versionTrident = chaineTrident[0].match(/\d+\.\d+/g);
+		var vTrident = parseInt(versionTrident[0]);
+		if(vTrident >= 4.0) {navigateurCompatible= true;}
+	}
+
+	var flashPresent=$.browser.flash;//Tester la présence du plugin flush
+	var cookiesPresent=$.cookies.test();//Tester les cookies
+
+	//Ajouter une information sur la résolution écran
+	//$('#infoNavigateur').append('<div id="infoResolution">La résolution de votre écran est '+largeurEcran+' x '+hauteurEcran+'</div>');
+	//$('#infoResolution').hide();//masquer le bloc 'résolution Ecran'
+
+	//Ajouter une information sur la compatibilté du navigateur
+	/*if(navigateurCompatible) $('#infoNavigateur').append('<div id="navigateur"><img class="icone_navigateur" align="absmiddle" src="images/'+nomNavigateur+'.png"/><b> v'+versionNavigateur+'</b></div>');*/
+	if(!navigateurCompatible) {
+		if(nomNavigateur=='msie' && versionNavigateur<8){
+			/*A tester comme ca. On supprime l'attribut id de la page pour ne pas afficher le CSS
+			 *qui y est rattaché et qui pourri la page sous IE.
+			 */
+			$("#logo").removeAttr("id");
+			$('#infoNavigateur div.content').append('<div id="navigateur"><b>Vous utilisez un navigateur obsolète depuis près de 8 ans!<br/> Pour une meilleure expérience web, prenez le temps de mettre votre navigateur à jour :</b></div>');
+		}
+		else{
+			$('#infoNavigateur div.content').append('<div id="navigateur"><b>Votre navigateur ou sa version n\'est pas compatible.<br/> Pour une meilleure expérience web, prenez le temps de mettre votre navigateur à jour :</b></div>');
+		}
+		$('#navigateur').append('<br><br>');
+		for(i=0;i<navigateursCompatibles.length;i++){
+	 		$('#navigateur').append('<a href="'+navigateursCompatiblesURL[i]+'"><img class="icone_navigateur" align="middle" src="../images/'+navigateursCompatibles[i]+'.png"/></a>');
+		}
+	 	$('#navigateur').append('<br><br>');
+	 	$('.icone_navigateur, .version').css({height: '100px', width: '100px'});//Mise en forme
+	 	retour=1;
+
+	}
+
+	//Si le navigateur n'accepte pas les cookies. Afficher un avertissement
+	else if(!cookiesPresent){
+		$('#infoNavigateur  div.content').append('<div id="cookies"><b>Il semble que votre navigateur n\'accepte pas les cookies.</b><br></div>');
+		$('#cookies').append('<b>Pour utiliser extens\'eau, activez les Cookies en modifiant les options de votre navigateur et essayez de nouveau.</b>');
+		retour=2;
+	}
+
+	//Si le navigateur ne supporte pas flash. Afficher un avertissement
+//	else if(!flashPresent){
+		/*JIMMY TEST: AUTORISATION IPHONE IPAD IPOD*/
+//		if((navigator.userAgent.match(/iPhone/i))||(navigator.userAgent.match(/iPod/i))||(navigator.userAgent.match(/iPad/i))){
+//			retour=0;
+//		}else{
+//			$('#infoNavigateur  div.content').append('<div id="flash"><b>Votre navigateur ne prend pas en charge les animations Flash.</b><br></div>');
+//			$('#flash').append('<b>Pour utiliser le portail web, installez Adobe Flash Player et essayez de nouveau.</b><br><br><a href="http://get.adobe.com/fr/flashplayer/"><img src="../images/get_adobe_flash_player.png" alt="Telecharger Flash"/></a>');
+//			retour=3;
+//		}
+//	}
+//	//seconde detection du plug in flash car probleme avec la premiere sur certains navigateur.
+//	else if(!detectFlash()){
+//		$('#infoNavigateur  div.content').append('<div id="flash"><b>Votre navigateur ne prend pas en charge les animations Flash.</b><br></div>');
+//		$('#flash').append('<b>Pour utiliser le portail web, installez Adobe Flash Player et essayez de nouveau.</b><br><br><a href="http://get.adobe.com/fr/flashplayer/"><img src="../images/get_adobe_flash_player.png" alt="Telecharger Flash"/></a>');
+//		retour=3;
+//	}
+//
+	else {
+		$('#infoNavigateur').remove();//Supprime le bloc si aucune erreur n'est detectée
+		retour=0;
+	}
+
+	if(retour!=0){
+		if($('.container-middle')){ // on supprime le bloc #container-middle
+			$('.container-middle').empty();
+			$('#infoNavigateur').appendTo('.container-middle');
+		}
+		$('#infoNavigateur').show();
+
+	}
+	return retour;
+}
+
+function recupererInformationsNavigateur() {
+//	nom = navigator.appName;
+//	appVersion = navigator.appVersion;
+//	userAgent = navigator.userAgent;
+//	alert("Nom:"+nom+"|appVersion:"+appVersion+"|userAgent:"+navigator.userAgent);
+	// Resolution ecran
+	document.forms[0].resolutionEcran.value=screen. width + "x" + screen.height;
+	//$("#resolutionEcran").val(screen. width + " x " + screen.height);
+	//alert(screen. width + " x " + screen.height);
+/* 	var IP = '<!--#echo var="REMOTE_ADDR"-->';
+	alert("IP:"+IP); */
+}
+
+//Jimmy:Autre fonction de detection du flash.
+//function detectFlash(){
+//	if( navigator.mimeTypes.length > 0 ){
+//		return navigator.mimeTypes["application/x-shockwave-flash"].enabledPlugin != null;
+//	}else if( window.ActiveXObject ){
+//		try{
+//			new ActiveXObject( "ShockwaveFlash.ShockwaveFlash" );
+//			return true;
+//		}catch( oError ){
+//			return false;
+//		}
+//	}else{
+//		return false;
+//	}
+//}
+
+/*
+* Mise en page globale
+*/
+function miseEnPage(){
+
+	//Attacher la gestion des touches au niveau 'document'
+	$(document).bind('keydown',touches);
+
+	//Pagination
+	(function(){
+		$('#pagination li.page, #pagination li.flecheNavigation').css({cursor:"pointer"});
+
+
+		//Attacher la gestion de la pagination aux élélement <li> (Voir http://api.jquery.com/bind/)
+		$('#pagination li.page, #pagination li.flecheNavigation').on('click', function(){
+			if($(this).hasClass('page')) setPage($.trim($(this).html()));
+			else if($(this).attr('id')=='premierePage') setPage('1');
+			else if($(this).attr('id')=='dernierePage') setPage($.trim($('li#numeroDernirePage').html()));
+			else if($(this).attr('id')=='pagePrecedente') precedent();
+			else if($(this).attr('id')=='pageSuivante') suivant();
+		});
+
+		$('#paginationChauffage li.page, #paginationChauffage li.flecheNavigation').css({cursor:"pointer"});
+		//Attacher la gestion de la pagination aux élélement <li> (Voir http://api.jquery.com/bind/)
+		$('#paginationChauffage li.page, #paginationChauffage li.flecheNavigation').on('click', function(){
+			if($(this).hasClass('page')) setPageChauffage($.trim($(this).html()));
+			else if($(this).attr('id')=='premierePageChauffage') setPageChauffage('1');
+			else if($(this).attr('id')=='dernierePageChauffage') setPageChauffage($.trim($('li#numeroDernierePageChauffage').html()));
+			else if($(this).attr('id')=='pagePrecedenteChauffage') precedentChauffage();
+			else if($(this).attr('id')=='pageSuivanteChauffage') suivantChauffage();
+		});
+	})();
+
+	//Pagination V2 avec intégration du design fleishman
+	(function(){
+
+		$('#pagination a.pagi, #pagination a.l, #pagination a.r').css({cursor:"pointer"});
+		//Attacher la gestion de la pagination aux élélement <a> (Voir http://api.jquery.com/bind/)
+		$('#pagination a.pagi, #pagination a.l, #pagination a.r').on('click', function(){
+			if(!$(this).hasClass('l') && !$(this).hasClass('r')) setPage($.trim($(this).html()));
+			else if($(this).attr('id')=='premierePage') setPage('1');
+			else if($(this).attr('id')=='dernierePage') setPage($.trim($('a#numeroDernirePage').html()));
+			else if($(this).attr('id')=='pagePrecedente') precedent();
+			else if($(this).attr('id')=='pageSuivante') suivant();
+		});
+
+		$('#paginationChauffage a.pagi, #paginationChauffage a.l, #paginationChauffage a.r').css({cursor:"pointer"});
+		//Attacher la gestion de la pagination aux élélement <a> (Voir http://api.jquery.com/bind/)
+		$('#paginationChauffage a.pagi, #paginationChauffage a.l, #paginationChauffage a.r').on('click', function(){
+			if(!$(this).hasClass('l') && !$(this).hasClass('r')) setPageChauffage($.trim($(this).html()));
+			else if($(this).attr('id')=='premierePageChauffage') setPageChauffage('1');
+			else if($(this).attr('id')=='dernierePageChauffage') setPageChauffage($.trim($('a#numeroDernierePageChauffage').html()));
+			else if($(this).attr('id')=='pagePrecedenteChauffage') precedentChauffage();
+			else if($(this).attr('id')=='pageSuivanteChauffage') suivantChauffage();
+		});
+
+		$('#paginationDAAF a.pagi, #paginationDAAF a.l, #paginationDAAF a.r').css({cursor:"pointer"});
+		//Attacher la gestion de la pagination aux élélement <a> (Voir http://api.jquery.com/bind/)
+		$('#paginationDAAF a.pagi, #paginationDAAF a.l, #paginationDAAF a.r').on('click', function(){
+			if(!$(this).hasClass('l') && !$(this).hasClass('r')) setPageDAAF($.trim($(this).html()));
+			else if($(this).attr('id')=='premierePageDAAF') setPageDAAF('1');
+			else if($(this).attr('id')=='dernierePageDAAF') setPageDAAF($.trim($('a#numeroDernierePageDAAF').html()));
+			else if($(this).attr('id')=='pagePrecedenteDAAF') precedentDAAF();
+			else if($(this).attr('id')=='pageSuivanteDAAF') suivantDAAF();
+		});
+	})();
+
+	//Mise en page des boutons div.greybtn
+	(function(){
+		$('div.greybtn').append(function(){
+								width=$(this).width();
+								height=$(this).height();
+
+								return html='<div class="greybtn_top" style="width:'+width+'px"></div>'+
+										'<div class="greybtn_bottom" style="width:'+width+'px"></div>'+
+										'<div class="greybtn_left" style="height:'+height+'px"></div>'+
+										'<div class="greybtn_right" style="height:'+height+'px"></div>'+
+										'<div class="greybtn_top_left"></div>'+
+										'<div class="greybtn_top_right"></div>'+
+										'<div class="greybtn_bottom_left"></div>'+
+										'<div class="greybtn_bottom_right"></div>';
+
+							});
+
+	})();
+
+//	//Affiche les titres d'un élément (exemple <img title="Image 1" src="/img.gif"/>) dans une infobulle (Voir http://flowplayer.org/tools/tooltip/index.html)
+//	(function(){
+//		global.afficherTitreCommeInfobulle('*');
+//	})();
+
+	//afficher/masquer les menus
+	(function(){
+		$('#topmenu>li>a').bind('click',function(){
+			var $this=$(this).parent();
+
+			if($this.find('.submenu').is(':visible')){
+				$this.find('.submenu').hide();
+				$this.removeClass('active');
+			}
+			else {
+				$('.submenu:visible').hide();
+				$('#topmenu>li.active').removeClass('active');
+
+				$this.addClass('active');
+				$this.find('.submenu').show('blind',function(){});
+			}
+		});
+	})();
+
+
+	//Récupère les information de contact à partir de l'adresse email. les information seront affichées dans une infobulle
+	(function(){
+		$('td.contact>a').bind('mouseover',function(){$(this).parent().trigger('mouseover');});
+		$('td.contact>a').bind('mouseout',function(){$(this).parent().trigger('mouseout');});
+		$('td.contact>a').bind('mouseenter',function(){$(this).parent().trigger('mouseenter');});
+		$('td.contact>a').bind('mouseleave',function(){$(this).parent().trigger('mouseleave');});
+
+		$('td.contact').one('mouseover ',function(){
+			var $this=$(this);
+			var email=$.trim($this.find('>a').html());
+			var data={'email' : email};//Données à envoyer au serveur
+
+			$.ajax({
+				url: "./ficheIdentite.do?dispatch=getInfosContact",
+				data: data,
+				beforeSend: function(){
+				$this.attr('title','<i>Chargement...</i>');
+				},
+				success: 	function(data, textStatus, XMLHttpRequest){
+						var infosContact='<b><i class="error">Aucune information de contact n\'est trouvée</i></b>';
+						if(data.email){
+							infosContact='<b>';
+
+							if(data.civilite) infosContact+=data.civilite+'. ';
+							if(data.nom) infosContact+=data.nom+' ';
+							if(data.prenom) infosContact+=data.prenom+' <br/>';
+
+							/*if(data.nomRole) infosContact+='Type : '+data.nomRole+' <br/>';*/
+
+							if(data.telFixe) infosContact+='Tél fixe : '+data.telFixe+' <br/>';
+							if(data.telPortable) infosContact+='Tél portable : '+data.telPortable+' <br/>';
+							infosContact+='</b>';
+					}
+
+
+					$this.attr('title',infosContact);
+					global.afficherTitreCommeInfobulleJquerySelector($this);
+					$this.trigger('mouseover');
+
+				}
+			});
+		});
+	})();
+
+	//Affichage de messages d'erreurs
+	(function(){
+
+		 $('.formulaire.modeVisualisation tr:not(.vide):even').addClass('bg1');
+		 $('.formulaire.modeVisualisation tr:not(.vide):odd').addClass('bg2');
+
+		var errorLine=$('td.error>.error').parent().parent();// La ligne contenant l'erreur
+		var prevLine=errorLine.prev();//La ligne précedente
+		prevLine.find('input,textarea').addClass('lightErrorBG');
+
+		$('td .lightErrorBG').one('focus',function(){
+			var $this=$(this);
+			$this.parent().find('.lightErrorBG').removeClass('lightErrorBG');
+			$this.parent().parent().next().find('td.error>div.error').remove();
+		});
+
+	})();
+
+	//Positionnement automatique du curseur sur le premier élément du formulaire ayant la classe .auto-focus
+	(function(){
+		$(':not(.lightErrorBG).auto-focus:first').focus();
+	})();
+
+}
+
+/* Ce code sera execute apres le chargement du document (onload) */
+/*$(function(){
+	$('#progressbarDiv').hide();
+	var retourVerificationNavigateur=verifierNavigateur();
+	if(retourVerificationNavigateur===0){//Si aucune erreur n'est detectee
+		$('#page').show();
+		window.onbeforeunload=function(){
+			$('#progressbarDiv .content').width($('#page .content').width());
+			$('#progressbarDiv .content').height($('#page .content').height());
+			$('#page, .defaultTooltip').hide();
+			$('#progressbarDiv').show();
+		};
+	}
+	miseEnPage();
+
+	//afficher/masquer les menus
+	$('#topmenu>li>a').bind('click',function(){
+		var $this=$(this).parent();
+
+		if($this.find('.submenu').is(':visible')){
+			$this.find('.submenu').hide();
+			$this.removeClass('active');
+		}
+		else {
+			$('.submenu:visible').hide();
+			$('#topmenu>li.active').removeClass('active');
+
+			$this.addClass('active');
+			$this.find('.submenu').show('blind',function(){});
+		}
+	});
+
+	//Positionnement automatique du curseur sur le premier element du formulaire ayant la classe .auto-focus
+	$('.auto-focus:first').focus();
+
+});
+*/
+
+
+//Fonctions utilisées par d'autre fichiers javascript
+var global={
+
+	setId : function(id){//Sauvegarde l'index de l'entité à traiter
+				document.forms[0].idEntite.value = id;
+			},
+
+	soumettre : function(valeur) {//Exécution d'une action
+					document.forms[0].dispatch.value = valeur;
+					document.forms[0].submit();
+			},
+	soumettre_questionnaire : function(valeur) {//Validation du questionnaire logement
+				document.forms[0].dispatch.value = valeur;
+				var champs_invalides = 0;
+				$("#formQuestionnaire input[type=text]").each(function(i,j){
+					var val = parseInt($(j).val());
+					if (val < 0 || isNaN(val) ) { champs_invalides = champs_invalides + 1 ; }
+					//$(j).val(val);
+				});
+				var combo = $("#formQuestionnaire #dk_container_logementOccupeId .dk_label").text();
+				if (combo.length == 1) { champs_invalides = champs_invalides + 1 ; }
+				if (champs_invalides == 0) {
+					$("#questionnaireButton").prop("disabled", true);
+					$("#questionnaireButton").addClass("boutonInactif");
+					
+					$.ajax({
+						type : "POST",
+						data : $(document.forms[0]).serialize(),
+						dataType: 'json',
+						url : './questionnaireLogement.do',
+						complete: function(jqXHR, textStatus) {
+						    switch (jqXHR.status) {
+						        case 200:
+									$("#validerQuestionnaire").html("La mise à jour a bien été prise en compte");
+						            break;
+						        case 204: 
+						        	$("#validerQuestionnaire").html("Aucune donnée n'a été modifiée dans le questionnaire");
+						            break;
+						        default:
+									$("#validerQuestionnaire").html("La mise à jour n'a pas été prise en compte");
+							}
+						    $("#questionnaireButton").prop("disabled", false);
+							$("#questionnaireButton").removeClass("boutonInactif");
+					    }
+					});
+				} else {
+					if (champs_invalides == 24) {
+						$("#validerQuestionnaire").html("Aucune donnée n'a été saisie. Veuillez renseigner les champs vides");
+					} else {
+						$("#validerQuestionnaire").html("Impossible de valider car certains champs sont vides ou incorrects.");
+					}
+				}
+			},
+	getDataFunction : function(jsonObject){
+						return function() {
+							return JSON.stringify(jsonObject);
+						};
+					},
+	creerGraphique : function (json,chart,width,height){
+							window[chart+"getData"]=function() {
+								var data=JSON.stringify(json);
+								return data;
+							};
+
+							swfobject.embedSWF("../js/graphiques/open-flash-chart.swf",
+											chart,
+											""+width,
+											""+height,
+											"9.0.0",
+											"expressInstall.swf",
+											{"get-data":chart+"getData"},
+											{"wmode":"transparent"}
+											);
+
+					},
+	afficherTitreCommeInfobulleJquerySelector : function(selector){
+						//Affiche les titres d'un élément (exemple <img title="Image 1" src="/img.gif"/>) dans une infobulle (Voir http://flowplayer.org/tools/tooltip/index.html)
+						var verticalPosition="top"; //"top" ou "bottom"
+						selector.each(function(){
+							var left=$(this).offset().left;
+							var width=$(this).outerWidth(true);
+							var bodyWidth=$('body').outerWidth(true);
+							var offset=[0,0];
+
+							var tooltipVerticalPosition=verticalPosition;
+
+							var horizontalPosition;
+							var tooltipHorizontalPosition;
+
+							if( width/2 < (bodyWidth/3)-left ){
+								horizontalPosition="left";
+								tooltipHorizontalPosition="right";
+								offset=[0,-9-width/2];
+							}
+							else if( width/2 < (left+width)-2*bodyWidth/3 ){
+								horizontalPosition="right";
+								tooltipHorizontalPosition="left";
+								offset=[0,9+width/2];
+							}
+							else{
+								horizontalPosition="center";
+								tooltipHorizontalPosition="center";
+							}
+
+							$(this).tooltip({
+								position: tooltipVerticalPosition+" "+tooltipHorizontalPosition,
+								tipClass: "defaultTooltip "+verticalPosition,
+								offset	: offset,
+								onBeforeShow:function() {
+												if($('div',this.getTip()).size()==0) {
+													this.getTip().prepend('<div></div>');
+													var fleche=$('div',this.getTip());
+													var tooltip=this.getTip();
+
+													var flecheWidth=parseInt(fleche.css('width'));//Valeur calculée à partir du  CSS
+													var flecheHeight=parseInt(fleche.css('height'));//Valeur calculée à partir du  CSS
+
+													var tooltipWidth=tooltip.innerWidth();
+													var tooltipHeight=tooltip.innerHeight();
+
+													if(verticalPosition==="top"){
+														fleche.css({'top':tooltipHeight+"px"});
+													}
+													else{
+														fleche.css({'top':"-"+flecheHeight+"px"});
+													}
+
+													if (horizontalPosition==="left"){
+														fleche.css({'left':"3px"});
+													}
+													else if (horizontalPosition==="right"){
+														fleche.css({'left':(tooltipWidth-flecheWidth-3)+"px"});
+													}
+													else{
+														fleche.css({'left':(tooltipWidth/2-flecheWidth/2)+"px"});
+													}
+												}
+											}
+										});
+									});
+								},
+
+	afficherTitreCommeInfobulle : function(selector){ global.afficherTitreCommeInfobulleJquerySelector($(selector+"[title]"));},
+
+	voirListeLogement:function(valeur){
+		document.forms[0].choixTypeListeLogement.value = valeur;
+		global.soumettre("voirLogements");
+	},
+	voirListeLogementChauffage:function(valeur){
+		document.forms[0].choixTypeListeLogementChauffage.value = valeur;
+		global.soumettre("voirLogements");
+	},
+	voirListeCompteur:function(valeur){
+		//Jimmy rajout suite fusion extenseau espace client
+		document.forms[0].choixTypeListeCompteur.value = valeur;
+		global.soumettre("voirCompteurs");
+	},
+	voirListeCompteurChauffage:function(valeur){
+		//Jimmy rajout suite fusion extenseau espace client
+		document.forms[0].choixTypeListeCompteurChauffage.value = valeur;
+		global.soumettre("voirCompteurs");
+	},
+	voirListeAlerte:function(valeur){
+		document.forms[0].choixTypeListeLogement.value = valeur;
+		global.soumettre("voirAlertes");
+	},
+	setTypeReference : function(typeReference){//Sauvegarde du type de référence de l'uex
+		document.forms[0].typeReference.value = typeReference;
+	},
+	getDescriptionPatrimoine :function(codePatrimoine,callback){
+		var data={"codePatrimoine":codePatrimoine};
+		$.ajax({
+			url: "./monCompte.do?dispatch=descriptionPatrimoine",
+			data: data,
+			beforeSend: function(){
+
+			},
+			success: 	function(data, textStatus, XMLHttpRequest){
+				callback(data,textStatus,XMLHttpRequest);
+			}
+		});
+	}
+};
+
+/* Ce code sera executé après le chargement du document (onload) */
+$(function(){
+	
+	// Voir ticket 2043
+	if(isTouchDevice()) {
+		disableTooltipOnTouchDevices();
+	}
+	
+	try{
+
+	/*
+	 * [KV] Gestion du menu fixe part 2:jquery [https://github.com/yairEO/stickyfloat] -> voir part 1: style_back.css
+	 */
+	/*
+	 * [KV] Gestion du menu fixe part 2:jquery [https://github.com/yairEO/stickyfloat] -> voir part 1: style_back.css
+	 */
+	jQuery('#sidebar').stickyfloat({
+		duration: 400,
+		easing: 'linear',
+		lockBottom: true
+	});
+
+    $(window).scroll(function () {
+        if ($(this).scrollTop() > 129) {
+        	$('#main-footer .return-top').show();
+        } else {
+        	$('#main-footer .return-top').hide();
+        }
+    });
+	 /*
+	  * Fin gestion menu fixe
+	  */
+
+	/*
+	* Gestion de la page de chargement à l'entrée d'une page.
+	*/
+	//$('#progressbarDiv').hide();
+	$('#loading-fade').hide();
+	$('#loading').hide();
+	var retourVerificationNavigateur=verifierNavigateur();
+	if(retourVerificationNavigateur===0){//Si aucune erreur n'est detectée
+		$('#page').show();
+		window.onbeforeunload=function(){
+			//$('#progressbarDiv .content').width($('#page .content').width()); 	//Jimmy:Empeche un affichage correcte de la div de chargement
+			//$('#progressbarDiv .content').height($('#page .content').height());	//Jimmy:Empeche un affichage correcte de la div de chargement
+
+			// [KV] DIRTYFLAG / PART 3 FIN
+			if (!__ignoreDirtyFlag) {
+
+				if(document.getElementById('pas2ProgressBar')){
+					if(document.getElementById('pas2ProgressBar').innerHTML=="vrai"){
+						document.getElementById('pas2ProgressBar').innerHTML="faux";
+						return;
+					}
+//					var valeur=document.getElementById('pas2ProgressBar').value;
+//					if(valeur=="test"){
+//						return null;
+//					}
+
+				}
+				$('#page, .defaultTooltip').hide();
+				/*
+				* Gestion de la page de chargement à la sortie d'une page.
+				*/
+				//$('#progressbarDiv').show();
+				$('form').submit(function() {/*alert('Handler for .submit() called.');*/return false;});//On bloque le submit pour éviter de relancer une action pendant le chargement.
+				$('#loading-fade').show();
+				$('#loading').show();
+		    }
+		    __ignoreDirtyFlag = false;
+		    return ;
+		};
+	}
+
+	//Appliquer la mise en page
+	miseEnPage();
+	} catch (e) {
+		//console.log("Une erreur est survenue:"+e);
+		$('#loading-fade').hide();
+		$('#loading').hide();
+	}
+});
+
+/*Affichage de la popup CONDITIONS GENERALES D'UTILISATION */
+$(function(){
+	$('#cgu').dialog({
+		  autoOpen: false,
+			bgiframe: true,
+			resizable: false,
+			draggable: false,
+			modal:true,
+			width: 900,
+			height: 600,
+			title:'Conditions Générales d\'Utilisation',
+			closeText: 'Fermer',
+			position: { my: "center", at: "center", of : window },
+			resizeStop: function(event, ui) {
+
+			},
+			hide:'blind',
+			show: 'blind',
+			close: function() {
+				$('#fade').fadeOut();
+			}
+			,open: function(event, ui) {
+				$('.ui-widget-overlay').bind('click', function(){ $("#cgu").dialog('close'); });
+			}
+	});
+
+	$('#openCGU').click(function(){
+		$('#cgu').dialog('open');
+		$('#fade').css({'filter' : 'alpha(opacity=80)'}).fadeIn();
+		return false;
+	});
+
+	$('#libelleCGU').click(function(){
+		$('#cgu').dialog('open');
+		$('#fade').css({'filter' : 'alpha(opacity=80)'}).fadeIn();
+		return false;
+	});
+});
+
+/*Affichage de la popup MENTIONS LEGALES */
+$(function(){
+	$('#mentionsLegales').dialog({
+		  autoOpen: false,
+			bgiframe: true,
+			resizable: false,
+			draggable: false,
+			modal:true,
+			width: 900,
+			height: 600,
+			title:'Mentions Légales',
+			position: { my: "center", at: "center", of : window },
+			resizeStop: function(event, ui) {
+
+			},
+			hide:'blind',
+			show: 'blind',
+			close: function() {
+				$('#fade').fadeOut();
+
+			}
+			,open: function(event, ui) {
+				$('.ui-widget-overlay').bind('click', function(){ $("#mentionsLegales").dialog('close'); });
+			}
+	});
+
+	$('#openMentionsLegales').click(function(){
+		$('#mentionsLegales').dialog('open');
+		$('#fade').css({'filter' : 'alpha(opacity=80)'}).fadeIn();
+		return false;
+	});
+
+	$('#libelleMentionsLegales').click(function(){
+		$('#mentionsLegales').dialog('open');
+		$('#fade').css({'filter' : 'alpha(opacity=80)'}).fadeIn();
+		return false;
+	});
+});
+
+
+/***********************/
+/* GESTION DES ONGLETS */
+/***********************/
+$(function(){
+	//Si la page ne gere pas un element alors on cache le niveau 3 du menu qui lui est associé.
+	if($("#pageAvecEau")==null || $("#pageAvecEau").val()!="true"){$('*[id$="_ItemEau"]').hide();}
+	if($("#pageAvecChauffage")==null || $("#pageAvecChauffage").val()!="true"){$('*[id$="_ItemChauff"]').hide();}
+	if($("#pageAvecDAAF")==null || $("#pageAvecDAAF").val()!="true"){$('*[id$="_ItemDAAF"]').hide();}
+	if($("#pageAvecElect")==null || $("#pageAvecElect").val()!="true"){$('*[id$="_ItemElect"]').hide();}
+	if($("#pageAvecSondeTemperature")==null || $("#pageAvecSondeTemperature").val()!="true"){$('*[id$="_ItemSondeTemperature"]').hide();}
+
+	if($("#pageAvecAMM")==null || $("#pageAvecAMM").val()!="true"){$('*[id$="_amm"]').hide();}
+	if($("#pageAvecIndexDemande")==null || $("#pageAvecIndexDemande").val()!="true"){$('*[id$="_index"]').hide();}
+	if($("#pageAvecTableauBord")==null || $("#pageAvecTableauBord").val()!="true"){$('*[id$="_tableauBord"]').hide();}
+
+	//On initialise le menu niveau 3 actif
+	if($("#idChoixOnglet")!=null && $("#idChoixOnglet").val()=="EAU"){
+		$('*[id*="_Item"]').removeClass("actif");
+		$('*[id$="_ItemEau"]').addClass("actif");
+	} else if($("#idChoixOnglet")!=null && $("#idChoixOnglet").val()=="CHAUFFAGE"){
+		$('*[id*="_Item"]').removeClass("actif");
+		$('*[id$="_ItemChauff"]').addClass("actif");
+	} else if($("#idChoixOnglet")!=null && $("#idChoixOnglet").val()=="DAAF"){
+		$('*[id*="_Item"]').removeClass("actif");
+		$('*[id$="_ItemDAAF"]').addClass("actif");
+	} else if($("#idChoixOnglet")!=null && $("#idChoixOnglet").val()=="ELECTRICITE"){
+		$('*[id*="_Item"]').removeClass("actif");
+		$('*[id$="_ItemElect"]').addClass("actif");
+  } else if($("#idChoixOnglet")!=null && $("#idChoixOnglet").val()=="SONDE_TEMPERATURE"){
+    $('*[id*="_Item"]').removeClass("actif");
+    $('*[id$="_ItemSondeTemperature"]').addClass("actif");
+  }
+
+	//Partie gestion onglets
+	$("#btnOngletEau").click(function(){
+		if($("#idChoixOnglet")!=null && $("#idChoixOnglet").val()=="EAU")return true;
+		afficherOnglet("EAU");
+	});
+	$("#btnOngletChauffage").click(function(){
+		if($("#idChoixOnglet")!=null && $("#idChoixOnglet").val()=="CHAUFFAGE")return true;
+		afficherOnglet("CHAUFFAGE");
+	});
+	$("#btnOngletDAAF").click(function(){
+		afficherOnglet("DAAF");
+	});
+	$("#btnOngletElectricite").click(function(){
+		if($("#idChoixOnglet")!=null && $("#idChoixOnglet").val()=="ELECTRICITE")return true;
+		afficherOnglet("ELECTRICITE");
+	});
+	$("#btnOngletSondeTemperature").click(function(){
+		if($("#idChoixOnglet")!=null && $("#idChoixOnglet").val()=="SONDE_TEMPERATURE")return true;
+		afficherOnglet("SONDE_TEMPERATURE");
+	});	
+
+	$('*[id$="_ItemEau"]').click(function(){
+		if($("#idChoixOnglet")!=null && $("#idChoixOnglet").val()=="EAU")return true;
+		afficherOnglet("EAU");
+	});
+
+	$('*[id$="_ItemChauff"]').click(function(){
+		if($("#idChoixOnglet")!=null && $("#idChoixOnglet").val()=="CHAUFFAGE")return true;
+		afficherOnglet("CHAUFFAGE");
+	});
+	$('*[id$="_ItemDAAF"]').click(function(){
+		if($("#idChoixOnglet")!=null && $("#idChoixOnglet").val()=="DAAF")return true;
+		afficherOnglet("DAAF");
+	});
+	$('*[id$="_ItemElect"]').click(function(){
+		if($("#idChoixOnglet")!=null && $("#idChoixOnglet").val()=="ELECTRICITE")return true;
+		afficherOnglet("ELECTRICITE");
+});
+  $('*[id$="_ItemSondeTemperature"]').click(function(){
+    if($("#idChoixOnglet")!=null && $("#idChoixOnglet").val()=="SONDE_TEMPERATURE")return true;
+    afficherOnglet("SONDE_TEMPERATURE");
+  });
+});
+
+
+
+/*Permet de determiner l'onglet actif et de le mettre à jour en session.*/
+function afficherOnglet(variable){
+	$('*[id*="_Item"]').removeClass("actif");
+	if(variable=="EAU"){
+		$('*[id$="_ItemEau"]').addClass("actif");
+
+		$('#imageEau').css({'width':'35px'});
+		$('#imageElectricite').css({'width':'31px'});
+		$('#imageChauffage').css({'width':'31px'});
+		$('#ongletEau').show();
+		$('#ongletChauffage').hide();
+		$('#ongletDAAF').hide();
+		$('#ongletElectricite').hide();
+		$('#ongletConfort').hide();
+		$('#ongletSondeTemperature').hide();
+		
+		//On maj en session le choix d'onglet
+		data={"choixOnglet" : "EAU"};
+		$.ajax({
+			url: "../extenseau/onglet.do?dispatch=majChoixOnglet",
+			async: false,
+			data: data,
+			success: function(data, textStatus, XMLHttpRequest){}
+		});
+		$("#idChoixOnglet").val("EAU");
+	}else if(variable=="CHAUFFAGE"){
+		$('*[id$="_ItemChauff"]').addClass("actif");
+
+		$('#imageChauffage').css({'width':'35px'});
+		$('#imageEau').css({'width':'31px'});
+		$('#imageElectricite').css({'width':'31px'});
+		$('#ongletEau').hide();
+		$('#ongletChauffage').show();
+		$('#ongletDAAF').hide();
+		$('#ongletElectricite').hide();
+		$('#ongletConfort').hide();
+		$('#ongletSondeTemperature').hide();
+		//On maj en session le choix d'onglet
+		data={"choixOnglet" : "CHAUFFAGE"};
+		$.ajax({
+			url: "../extenseau/onglet.do?dispatch=majChoixOnglet",
+			async: false,
+			data: data,
+			success: function(data, textStatus, XMLHttpRequest){}
+		});
+		$("#idChoixOnglet").val("CHAUFFAGE");
+	} else if(variable=="DAAF"){
+		$('*[id$="_ItemDAAF"]').addClass("actif");
+		$('#ongletEau').hide();
+		$('#ongletChauffage').hide();
+		$('#ongletElectricite').hide();
+		$('#ongletConfort').hide();
+		$('#ongletDAAF').show();
+		$('#ongletSondeTemperature').hide();
+		data={"choixOnglet" : "DAAF"};
+		//On maj en session le choix d'onglet
+		$.ajax({
+			url: "../extenseau/onglet.do?dispatch=majChoixOnglet",
+			async: false,
+			data: data,
+			success: function(data, textStatus, XMLHttpRequest){}
+		});
+		$("#idChoixOnglet").val("DAAF");
+	}else if(variable=="ELECTRICITE"){
+		$('*[id$="_ItemElect"]').addClass("actif");
+		$('#imageElectricite').css({'width':'35px'});
+		$('#imageChauffage').css({'width':'31px'});
+		$('#imageEau').css({'width':'31px'});
+		$('#ongletEau').hide();
+		$('#ongletChauffage').hide();
+		$('#ongletDAAF').hide();
+		$('#ongletElectricite').show();
+		$('#ongletConfort').hide();
+    $('#ongletSondeTemperature').hide();
+		data={"choixOnglet" : "ELECTRICITE"};
+		//[JT]L'électricité est une partie spécifique qui n'est présente pour le moment que dans les pages performances énergétique.
+		//On ne met donc pas en session le choix, car on doit garder le produit (EAU, CHAUFFAGE) de la navigation précédente.
+		//On maj en session le choix d'onglet
+		//		$.ajax({
+		//			url: "../extenseau/onglet.do?dispatch=majChoixOnglet",
+		//			data: data,
+		//			success: function(data, textStatus, XMLHttpRequest){}
+		//		});
+		$("#idChoixOnglet").val("ELECTRICITE");
+	} else if(variable=="SONDE_TEMPERATURE"){
+    $('*[id$="_ItemSondeTemperature"]').addClass("actif");
+    $('#ongletEau').hide();
+    $('#ongletChauffage').hide();
+    $('#ongletElectricite').hide();
+    $('#ongletConfort').hide();
+    $('#ongletDAAF').hide();
+    $('#ongletSondeTemperature').show();
+    data={"choixOnglet" : "SONDE_TEMPERATURE"};
+    //On maj en session le choix d'onglet
+    $.ajax({
+      url: "../extenseau/onglet.do?dispatch=majChoixOnglet",
+      async: false,
+      data: data,
+      success: function(data, textStatus, XMLHttpRequest){}
+    });
+    $("#idChoixOnglet").val("SONDE_TEMPERATURE");
+  }
+	traitementOnglet(variable);
+}
+/***************************/
+/* FIN GESTION DES ONGLETS */
+/***************************/
+
+/*Affichage de la popup AIDE */
+$(function(){
+	$('#iconLegend').dialog({
+		  autoOpen: false,
+			bgiframe: true,
+			resizable: false,
+			draggable: true,
+			modal:true,
+			width: 820,
+			height: 520,
+			title: '?',
+			closeText: 'Fermer',
+			position: { my: "center", at: "center", of : window },
+			resizeStop: function(event, ui) {
+
+			},
+			hide:'blind',
+			show: 'blind',
+			close: function() {
+				$('#fade').fadeOut();
+			}
+			,open: function(event, ui) {
+				$('.ui-widget-overlay').bind('click', function(){ $("#iconLegend").dialog('close'); });
+			}
+	});
+
+//	$('#showHelp').click(function(){
+//		$("#txt-help").stop( true, true ).hide(500);
+//		$('#iconLegend').dialog('open');
+//		$('#fade').css({'filter' : 'alpha(opacity=80)'}).fadeIn();
+//		return false;
+//	});
+
+//	$('#showHelp').hover(
+//		function() {
+//			$("#txt-help").stop( true, true ).show(500);
+//			//$("#txt-help").toggle(500);
+//		},
+//		function() {
+//			$("#txt-help").stop( true, true ).hide(500);
+//			//$("#txt-help").toggle(500);
+//		}
+//	);
+	$('#img-help').click(function(){
+		$('#help-menu').slideToggle();
+	});
+
+	$('#txt-help').click(function(){
+		$('#iconLegend').dialog('open');
+		$('#fade').css({'filter' : 'alpha(opacity=80)'}).fadeIn();
+	});
+
+//	$('#img-help').hover(
+//		function() {
+//			$("#help-menu").stop( true, true ).show(500);
+//			//$("#txt-help").toggle(500);
+//		},
+//		function() {
+//			$("#help-menu").stop( true, true ).hide(500);
+//			//$("#txt-help").toggle(500);
+//		}
+//	);
+
+
+
+});
+
+/**
+ * Gestion de l'affichage du popup de bienvenue.
+ * [JT][Fonction desactive actuellement]
+ */
+/*
+ * function affichageNews(affichageNews){
+	if(affichageNews!=null && affichageNews=="true"){
+		$('#loading-fade').show();
+		//$('#popupInfoNewVersion').css({'display':''});
+		$('#popupInfoNewVersion').show();
+	}
+}
+$(function(){
+	$('#btnInfoNewVersion').click(function(){
+		//Enregistrement dans session et bdd si saveAction=true.
+		var flagValidationNewVersion=$('#flagValidationNewVersion').is(':checked');
+		//console.log(flagValidationNewVersion);
+		data={"flagValidationNewVersion" : ""+flagValidationNewVersion};
+		$.ajax({
+			url: "../public/login.do?dispatch=updateAffichagePopupNews",
+			data: data,
+			success: function(data, textStatus, XMLHttpRequest){}
+		});
+		$('#popupInfoNewVersion').fadeOut(1000,function(){
+			$('#loading-fade').hide();
+		});
+	});
+});
+*/
+
+
+function reinitForm(formId){
+	var myForm = $('#'+formId);
+	myForm[0].reset();
+	var critereBlock = myForm.find('div[id^="divCrit"]');
+	// Réinit dynamique des select dropkick et non dropkick
+	critereBlock.find('select option:selected').removeAttr('selected');
+	critereBlock.find('select option:selected').prop('selected',false);
+	// Selection du premier
+	critereBlock.find( "select" ).each(function( index ) {
+		// Cas particulier pour les select qui ont des propriétés par défaut
+	  if($(this).prop('defaultSelected')){
+		  $(this).val( $(this).prop('defaultSelected') );
+	  } else {
+		  $(this).children(':first-child').attr('selected','selected');
+		  $(this).children(':first-child').prop('selected',true);
+	  }
+	});
+	critereBlock.find('select:not(.sansDropkick)').dropkick('refresh');
+	var inputs = myForm.find('input[type=text]');
+	$.each(inputs, function(index, value) {
+		value.value = '';
+	});
+}
+
+function checkDate(d) {
+    // Cette fonction vérifie le format JJ/MM/AAAA saisi et la validité de la date.
+    // Le séparateur est défini dans la variable separateur
+	// Retourne 1 si ok, 0 si ko.
+    var amin=2014; // année mini
+    var amax=2030; // année maxi
+    var separateur="/"; // separateur entre jour/mois/annee
+    var j=(d.substring(0,2));
+    var m=(d.substring(3,5));
+    var a=(d.substring(6));
+    var ok=1;
+    //Test le jour.
+    if ( ((isNaN(j))||(j<1)||(j>31)) && (ok==1) ) {ok=0;}
+    //Test le mois.
+    if ( ((isNaN(m))||(m<1)||(m>12)) && (ok==1) ) {ok=0;}
+    //Test l'année.
+    if ( ((isNaN(a))||(a<amin)||(a>amax)) && (ok==1) ) {ok=0;}
+    //Test le séparateur.
+    if ( ((d.substring(2,3)!=separateur)||(d.substring(5,6)!=separateur)) && (ok==1) ) {ok=0;}
+    if (ok==1) {
+       var d2=new Date(a,m-1,j);
+       j2=d2.getDate();
+       m2=d2.getMonth()+1;
+       a2=d2.getFullYear();
+       //Test si la date existe.
+       if ( (j!=j2)||(m!=m2)||(a!=a2) ) {ok=0;}
+    }
+    return ok;
+ }
+
+var UuidTester = (function() {
+    var instance;
+
+    var Tester = function() {
+        if (!(this instanceof Tester)) {
+            return instance;
+        }
+
+        // Ajoute le tester
+        this.isValid = function(value) {
+            if (typeof value === 'string') {
+                return /^[0-9a-f]{8}(-[0-9a-f]{4}){4}[0-9a-f]{8}$/i.test(value);
+            }
+
+            return false;
+        };
+    };
+
+    // Création de l'instance globale
+    instance = new Tester();
+    return Tester;
+})();
+
+/**
+ * Exception pour indiquer qu'un argument est invalide
+ */
+function IllegalArgumentException() {
+
+}
+
+/**
+ * Création d'un gestionnaire de communication avec le serveur
+ * @param options Les options de configuration
+ */
+function ExtenseauV2AjaxManager(options) {
+    if (!(this instanceof ExtenseauV2AjaxManager)) {
+        return new ExtenseauV2AjaxManager(options);
+    }
+
+    var _this = this;
+    var configuration = {
+        // Le chemin racine pour l'url
+        applicationUrlRootPath: '',
+        security: {
+            // Si le serveur retourne une session invalide : redirection auto ou non
+            notConnectedRedirect: true,
+            // L'url de connexion pour la redirection si le serveur n'en retourne pas
+            //  Le serveur est toujours prioritaire
+            defaultConnectionUrl: undefined,
+        },
+        callbacks: {
+            success: function(json, textStatus, jqXHR) { },
+            error: function(jqXHR, textStatus, errorThrown) { },
+            // Erreur interne non pris en charge par le système
+            internalError: function(error, jqXHR) { },
+            insufficientRight: function(jqXHR, textStatus, errorThrown) { }
+        }
+    };
+
+    var default_jqXHR_config = {
+        error: function(jqXHR, textStatus, errorThrown) {
+            // Manage the error
+            if (typeof configuration.callbacks.error === 'function') {
+                configuration.callbacks.error(jqXHR, textStatus, errorThrown);
+            }
+        },
+        statusCode: {
+            403: function(jqXHR, textStatus, errorThrown) {
+                // Pour si la connexion est refusé
+                if (configuration.security.notConnectedRedirect === true) {
+                    // Redirection avec récupération de l'information serveur
+                    var newLocation = undefined; // Force à undefined pour des questions de lecture du code
+                    try { newLocation = jqXHR.getResponseHeader( 'Content-Location' ); } catch (exception) { newLocation = null; }
+                    if (!newLocation) newLocation = configuration.security.defaultConnectionUrl;
+
+                    if (newLocation) {
+                        // Redirection
+                    } else {
+                        // Erreur
+                        if (typeof configuration.callbacks.internalError === 'function') {
+                            configuration.callbacks.internalError(new Error("Cannot redirect : no url found"), jqXHR, errorThrown);
+                        }
+                    }
+                } else if (configuration.callbacks.insufficientRight === 'function') {
+                    configuration.callbacks.insufficientRight(jqXHR, textStatus, errorThrown);
+                }  else if (configuration.callbacks.error === 'function') {
+                    configuration.callbacks.error(jqXHR, textStatus, errorThrown);
+                }
+            }
+        },
+        success: function(json, textStatus, jqXHR) {
+            try {
+                if (typeof configuration.callbacks.success === 'function') {
+                    configuration.callbacks.success(json, textStatus, jqXHR);
+                }
+            } catch (exception) {
+                if (typeof configuration.callbacks.internalError === 'function') {
+                    configuration.callbacks.internalError(exception, jqXHR, json);
+                }
+            }
+        }
+    };
+
+    // -------------------------------------------------------------------------
+    //
+    //
+    // -------------------------------------------------------------------------
+
+    var optionsManager = {
+        root: function(configuration, options) {
+            for (var key in options) {
+                if (typeof optionsManager[key] === 'object' && typeof optionsManager[key].__ === 'function') {
+                    optionsManager[key].__(configuration, options[key]);
+                } else if (key === 'applicationUrlRootPath') {
+                    if (typeof options[key] === 'string' && options[key].length > 0) {
+                        configuration[key] = options[key];
+                    }
+                }
+            }
+        },
+        security: {
+            __: function(configuration, options) {
+                for (var key in options) {
+                    if (key === 'notConnectedRedirect') {
+                        if (options[key] === false) {
+                            configuration.security[key] = false;
+                        }
+                    } else if (key === 'defaultConnectionUrl') {
+                        if (defaultConnectionUrl === undefined) {
+                            configuration.security[key] = undefined;
+                        } else if (typeof options[key] === 'string' && options[key].length > 0) {
+                            configuration.security[key] = options[key];
+                        }
+                    }
+                }
+            }
+        },
+        callbacks: {
+            __: function(configuration, options) {
+                for (var key in options) {
+                    // Si la fonction existe en configuration alors on accepte
+                    if (configuration.callbacks[key]) {
+                        if (typeof options[key] === 'function') {
+                            configuration.callbacks[key] = options[key];
+                        }
+                    }
+                }
+            }
+        },
+    }
+
+    // Gestion des options
+    optionsManager.root(configuration, options);
+
+    // -------------------------------------------------------------------------
+    //
+    //
+    // -------------------------------------------------------------------------
+
+    this.get = function(path, data) {
+        if (typeof path !== 'string' || path.length <= 0) {
+            throw new TypeError("Invalid input path");
+        }
+        var config_ = {
+          async: true,
+          caller: _this,
+          traditional: true,
+          url: configuration.applicationUrlRootPath + path,
+          type: "GET",
+          dataType: "json"
+        };
+
+        if (data && typeof data === 'object') {
+          config_.data = data;
+        }
+
+        var jqXHR_config = $.extend({}, default_jqXHR_config, config_);
+
+        $.ajax(jqXHR_config);
+    };
+
+    this.post = function(path, data) {
+        if (typeof path !== 'string' || path.length <= 0) {
+            throw new TypeError("Invalid input path");
+        }
+
+        var jqXHR_config = {
+            async: true,
+            caller: _this,
+            traditional: true,
+            url: configuration.applicationUrlRootPath + path,
+            type: "POST",
+            dataType: "json"
+        };
+
+        if (typeof data === 'object') {
+            jqXHR_config.data = data;
+        }
+
+        $.extend(jqXHR_config, default_jqXHR_config)
+        $.ajax(jqXHR_config);
+    };
+
+    this.request = function(method, path, data) {
+        if (typeof method !== 'string' || method.length <= 0) {
+            throw new TypeError("Invalid input method");
+        }
+        if (typeof path !== 'string' || path.length <= 0) {
+            throw new TypeError("Invalid input path");
+        }
+
+        var jqXHR_config = {
+            async: true,
+            caller: _this,
+            traditional: true,
+            url: configuration.applicationUrlRootPath + path,
+            type: method,
+            dataType: "json"
+        };
+
+        if (typeof data === 'object') {
+            jqXHR_config.data = data;
+        }
+
+        $.extend(jqXHR_config, default_jqXHR_config)
+        $.ajax(jqXHR_config);
+    };
+
+    this.ajax = function(config) {
+        if (typeof config !== 'object') {
+            throw new TypeError("Invalid input configuration");
+        }
+
+        var jqXHR_config = $.extend({}, config, default_jqXHR_config)
+        $.ajax(jqXHR_config);
+    };
+}
+
+ExtenseauV2AjaxManager.prototype.get = function(path, data) { };
+ExtenseauV2AjaxManager.prototype.post = function(path, data) { };
+ExtenseauV2AjaxManager.prototype.request = function(method, path, data) { };
+ExtenseauV2AjaxManager.prototype.ajax = function(config) { };
+
+
+function getMinDate(date1,date2){
+    return date1 < date2 ? date1: date2;
+}
+
+function getMaxDate(date1,date2){
+    return date1 > date2 ? date1: date2;
+}
+
+function checkDates(dateDebut, dateFin){
+    if(!dateDebut || !dateFin)
+        return true;
+    if(dateDebut > dateFin)
+        return false;
+    //if((dateFin.getFullYear() - dateDebut.getFullYear()) > 4)
+    var yearsDiff = (dateFin - dateDebut) / 1000 / 60 / 60 / 24 / 365;
+    if(yearsDiff > 4 )
+        return false;
+    return true;
+}
+
+// ----------------------------------------------------------------------------
+//        Gestion de base64
+// ----------------------------------------------------------------------------
+
+(function(root) {
+
+  var _keyStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+
+  var methods = {
+    encode: function(value) {
+      throw new Error("Not Implemented");
+    },
+    decode: function(data) {
+      throw new Error("Not Implemented");
+    },
+    utf8_encode: function(string) {
+      // Source : http://stackoverflow.com/questions/246801/how-can-you-encode-a-string-to-base64-in-javascript : 12
+      var utftext = "", c, n;
+
+      string = string.replace(/\r\n/g,"\n");
+      for (n = 0; n < string.length; n++) {
+        c = string.charCodeAt(n);
+
+        if (c < 128) {
+          utftext += String.fromCharCode(c);
+        } else if((c > 127) && (c < 2048)) {
+          utftext += String.fromCharCode((c >> 6) | 192);
+          utftext += String.fromCharCode((c & 63) | 128);
+        } else {
+          utftext += String.fromCharCode((c >> 12) | 224);
+          utftext += String.fromCharCode(((c >> 6) & 63) | 128);
+          utftext += String.fromCharCode((c & 63) | 128);
+        }
+      }
+
+      return utftext;
+    },
+    utf8_decode: function (utftext) {
+      // Source : http://stackoverflow.com/questions/246801/how-can-you-encode-a-string-to-base64-in-javascript : 12
+      var string = "", i = 0, c = 0, c1 = 0, c2 = 0;
+
+      while (i < utftext.length) {
+          c = utftext.charCodeAt(i);
+
+          if (c < 128) {
+              string += String.fromCharCode(c);
+              i++;
+          } else if((c > 191) && (c < 224)) {
+              c1 = utftext.charCodeAt(i+1);
+              string += String.fromCharCode(((c & 31) << 6) | (c1 & 63));
+              i += 2;
+          } else {
+              c1 = utftext.charCodeAt(i+1);
+              c2 = utftext.charCodeAt(i+2);
+              string += String.fromCharCode(((c & 15) << 12) | ((c1 & 63) << 6) | (c2 & 63));
+              i += 3;
+          }
+      }
+
+      return string;
+    }
+  };
+
+  // Contruction suivant le navigateur
+  if (typeof window.btoa === 'function') {
+    // Encodage OK
+    methods.encode = function(value) {
+      // Source : https://developer.mozilla.org/en-US/docs/Web/API/WindowBase64/btoa
+      return window.btoa(unescape(encodeURIComponent(value)));
+    };
+  } else {
+    // Source : http://stackoverflow.com/questions/246801/how-can-you-encode-a-string-to-base64-in-javascript : 12
+    methods.encode = function(value) {
+      var output = "", chr1, chr2, chr3, enc1, enc2, enc3, enc4, i = 0;
+
+      input = methods.utf8_encode(input);
+
+      while (i < input.length) {
+        chr1 = input.charCodeAt(i++);
+        chr2 = input.charCodeAt(i++);
+        chr3 = input.charCodeAt(i++);
+
+        enc1 = chr1 >> 2;
+        enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+        enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
+        enc4 = chr3 & 63;
+
+        if (isNaN(chr2)) {
+            enc3 = enc4 = 64;
+        } else if (isNaN(chr3)) {
+            enc4 = 64;
+        }
+
+        output += _keyStr.charAt(enc1);
+        output += _keyStr.charAt(enc2);
+        output += _keyStr.charAt(enc3);
+        output += _keyStr.charAt(enc4);
+      }
+
+      return output;
+    };
+  }
+
+  // Décodage
+  if (typeof window.atob === 'function') {
+    methods.decode = function(data) {
+      // Source : https://developer.mozilla.org/en-US/docs/Web/API/WindowBase64/btoa
+      return decodeURIComponent(escape(window.atob(str)));
+    };
+  } else {
+    // Source : http://stackoverflow.com/questions/246801/how-can-you-encode-a-string-to-base64-in-javascript : 12
+    methods.decode = function (input) {
+      var output = "", chr1, chr2, chr3, enc1, enc2, enc3, enc4, i = 0;
+
+      input = input.replace(/[^A-Za-z0-9\+\/\=]/g, "");
+
+      while (i < input.length) {
+        enc1 = _keyStr.indexOf(input.charAt(i++));
+        enc2 = _keyStr.indexOf(input.charAt(i++));
+        enc3 = _keyStr.indexOf(input.charAt(i++));
+        enc4 = _keyStr.indexOf(input.charAt(i++));
+
+        chr1 = (enc1 << 2) | (enc2 >> 4);
+        chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+        chr3 = ((enc3 & 3) << 6) | enc4;
+
+        output += String.fromCharCode(chr1);
+
+        if (enc3 !== 64) {
+          output += String.fromCharCode(chr2);
+        }
+        if (enc4 !== 64) {
+          output += String.fromCharCode(chr3);
+        }
+      }
+
+      return _utf8_decode(output);
+    };
+  }
+
+  root.Base64 = {
+    encode: methods.encode,
+    decode: methods.decode
+  }
+
+} (this));
+
+/*
+ * Sonde de Température
+ *
+ */
+$(document).ready(function() {
+  /**
+   * Réalise l'initialisation globale pour sonde de température
+   * @author NEGRO Y CASTRO, Eric
+   * @date 2016-03-25
+   */
+  function initializeGlobalSondeTemperature() {
+    // Pagination
+    (function() {
+
+      /**
+       * Permet le retour du nom du formulaire à utiliser
+       * @author NEGRO Y CASTRO, Eric
+       * @date 2016-03-31
+       * @return Le nom si trouvé, sinon {@code null}
+       */
+      function getFormName() {
+        return (typeof getFormName_sondeTemperature === 'function') ? getFormName_sondeTemperature() : undefined;
+      }
+
+      /**
+       * Change de page
+       * @author NEGRO Y CASTRO, Eric
+       * @date 2016-03-31
+       */
+      function changePage(id) {
+        var formName = getFormName();
+        if (formName) {
+          if (document.forms[0].elements[formName + ".defilement.choixPage"]) {
+            document.forms[0].elements[formName + ".defilement.choixPage"].value = "" + id;
+            global.soumettre("defiler");
+          } else {
+            console.error("Impossible de trouver la variable pour le changement de page");
+          }
+        } else {
+          console.error("Impossible de déterminer le nom du formulaire de sonde");
+        }
+      }
+
+      /**
+       * Demande la page précédente
+       * @author NEGRO Y CASTRO, Eric
+       * @date 2016-03-31
+       */
+      function allerPagePrecedent() {
+        changePage("PagePrecedente");
+      }
+
+      /**
+       * Demande la page suivante
+       * @author NEGRO Y CASTRO, Eric
+       * @date 2016-03-31
+       */
+      function allerPageSuivante() {
+        changePage("PageSuivante");
+      }
+
+      $('#paginationSondeTemperature a.pagi, #paginationSondeTemperature a.l, #paginationSondeTemperature a.r').css({cursor:"pointer"});
+      //Attacher la gestion de la pagination aux élélement <a> (Voir http://api.jquery.com/bind/)
+      $('#paginationSondeTemperature a.pagi, #paginationSondeTemperature a.l, #paginationSondeTemperature a.r').on('click', function(){
+        if (!$(this).hasClass('l') && !$(this).hasClass('r'))  {
+          changePage($.trim($(this).html()));
+        } else if($(this).attr('id')=='premierePageSondeTemperature') {
+          changePage('1');
+        } else if($(this).attr('id')=='dernierePageSondeTemperature') {
+          changePage($.trim($('a#numeroDernierePageSondeTemperature').html()));
+        } else if($(this).attr('id')=='pagePrecedenteSondeTemperature') {
+          allerPagePrecedent();
+        } else if($(this).attr('id')=='pageSuivanteSondeTemperature') {
+          allerPageSuivante();
+        }
+      });
+    })();
+  }
+
+  initializeGlobalSondeTemperature();
+});
+
+/**
+ * Permet de tester si l'élément HTML existe ou non
+ * @param {String} id L'identifiant de l'élément HTML
+ * @returns {Boolean}
+ */
+function isHtmlElementExistById(id) {
+  if (typeof id === 'string') {
+    return $('#' + id).length !== undefined;
+  }
+
+  return false;
+}
+/**
+ * Fonction permmettant de vérifier qu'une valeur est correcte en fonction de l'expression régulière passée en paramètre
+ * @author Johan DOUILLARD
+ * @date 2016-10-11
+ * @version 1.01 2016-10-11 (Johan DOUILLARD)
+ * @param {String} value : valeur saisie par l'utilisateur
+ * @param {String} regex : expression régulière sous forme de chaîne de caractères
+ * @returns {Boolean} permet de dire si la valeur satisfait l'expression régulière
+ */
+function patternChecker(value, regex) {
+	// Vérification des paramètres d'entrée
+	if(value === undefined || regex === undefined || value === '' || regex === '') {
+		return false;
+	}
+	// Execution de l'expression régulière
+	var matchResult = value.match(regex);
+	// Retour du booléen
+	var finalResult = matchResult === null || matchResult.length === 0 ? false : true;
+	return finalResult;
+}
+
+/**
+ * Permet de détecter les appareils tactiles
+ * 
+ * @see https://github.com/Modernizr/Modernizr/blob/master/feature-detects/touchevents.js 
+ * 
+ * @return true si l'appareil est tactile false sinon
+ */
+function isTouchDevice() {
+	var bool;
+    if (('ontouchstart' in window) || window.DocumentTouch && 
+    	document instanceof DocumentTouch || navigator.maxTouchPoints) {
+    	bool = true;
+    } else {
+    	bool = false;
+    }
+    return bool;
+}
+
+/**
+ * Permet de désactiver les tooltips
+ * 
+ */
+function disableTooltipOnTouchDevices() {
+	$("[class*='addTooltip']").each(function() {
+		$(this).removeClass('addTooltip');
+	});
+}
+
+/**
+ * Permet de savoir si la target de l'évènement passé en paramètre est le fils de l'élément .une-ligne.first
+ * mais n'a pas pour parent l'élément #indexList
+ *
+ * @param l'évènement
+ * 
+ * @return true si fils de .une-ligne.first et pas fils de #indexList false sinon
+ */
+function isChildOfUneLigneFirstAndNotIndexList(e) {
+	var target = $(e.target);
+	return target.parents('.une-ligne.first').length > 0 && target.parents('#indexList').length == 0;
+}
+
+/**
+ * Permet de gérer les événements des appareils tactiles
+ * 
+ */
+function touchDevicesSelectHandler() {
+	// Variable permettant de savoir si on doit désactiver ou pas le scroll de la page
+	window.onTouchMoveEnabled = true;
+	// Gestion de l'évènement du tap (clic)
+	document.addEventListener('touchstart', function(e) {
+		if(isChildOfUneLigneFirstAndNotIndexList(e)) {
+			window.onTouchMoveEnabled = false
+		} 
+		else {
+			window.onTouchMoveEnabled = true;
+			// Restauration du scroll de la page
+			window.ontouchmove = null;
+		}
+	}, {passive:false});
+	// Gestion de l'évènement glisser
+	document.addEventListener('touchmove', function (e) {
+		if(!window.onTouchMoveEnabled) {
+			 // Désactivation du scroll de la page
+			 window.ontouchmove = e.preventDefault();
+		}
+	}, {passive : false});
+}

@@ -1,0 +1,100 @@
+<h1 class="col-md-12 text-center">Configuration des Boutons de l'application</h1>
+<div id="Form" class="form-group" data-ng-init="load()">
+	<div class="row">
+		<div class="col-md-12 text-center">
+			<label>Nombre de Bouton</label>
+		</div>
+	</div>
+	<div class="row">
+		<div class="col-md-12 text-center" style="padding-bottom: 5%">
+			<button class="btn btn-rounded btn-space btn-primary" ng-click="decrem()">-</button>
+			<label id="nbbtn" style="padding-right: 5%; padding-left: 5%">{{ lesbtns.length}}</label>
+			<button class="btn btn-rounded btn-space btn-primary" ng-click="increm()">+</button>
+		</div>
+	</div>
+</div>
+<div id="Formbtn" class="form-group" ng-repeat="button in  lesbtns track by $index">
+    <div class="row">
+        <div class="col-md-12 text-center">
+             <h1>Bouton N°{{$index +1}}</h1>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12 text-center" >
+            <div class="radio">
+	            <label>
+	            <input type="radio" ng-model ="button.type" ng-click="changetype(button)" value="link"  checked>Lien</label>
+	            <label>
+                <input type="radio" ng-model ="button.type" ng-click="changetype(button)"  value="menu" >Menu</label>
+            </div>
+        </div>
+    </div>
+    <div id="link" class="row " ng-if="button.type != 'menu'">
+    	<div class="col-md-12 text-center">
+        <label> URL
+        <input type="text" class="form-control"  ng-model="button.link">
+        </label>
+        </div>
+    </div>
+    <div id="menu" class="row " ng-if="button.type != 'link'">
+    	<div class="col-md-12 text-center">
+        <label> Menu </br>
+        <select id="listmenu" ng-change="selectoption(menupage,button)" ng-model="menupage" >
+        <option ng-repeat="option in lespages" >{{option.nom}}</option>
+        </select>
+        
+        </label>
+        </div>
+    </div>
+    <div id="Height" class="row ">
+    	<div class="col-md-12 text-center">
+    	<label> Hauteur
+    	<input type="text" class="form-control" ng-model="button.height">
+        </label>
+        </div>
+    </div>
+    <div id="Width" class="row ">
+    	<div class="col-md-12 text-center">
+        <label> Largeur
+        <input type="text" class="form-control" ng-model="button.width">
+        </label>
+        </div>
+    </div>
+    <div id="X" class="row ">
+    	<div class="col-md-12 text-center">
+        <label> X
+        <input type="text" class="form-control" ng-model="button.X">
+        </label>
+        </div>
+    </div>
+    <div id="Y" class="row ">
+    	<div class="col-md-12 text-center">
+        <label> Y
+        <input type="text" class="form-control" ng-model="button.Y">
+        </label>
+        </div>
+    </div>
+    </br>
+    <div class="row">
+        <div class="col-md-12 text-center">
+            <button class="btn btn-rounded btn-space btn-primary" ngf-select="upload($file,$index+1)"><i class="mdi mdi-upload xs-mr-5"></i><span>Choisir un fond pour le bouton</span></button>
+        </div>
+    </div>
+    <div class="row" style="padding-bottom: 5%">
+	    <div class="col-md-12 text-center">
+	        <label> <img id ="picsource" ng-src="./public/applications/{{username}}/{{appname}}/{{numero}}/{{$index+1}}_bg.jpg"></label>
+	    </div>
+	</div>
+</div>
+<div class="row">
+	<div class="col-md-12 text-center">
+		<button type="submit" ng-click="savebtn()" class="btn btn-default ">Sauvegarder</button>
+	</div>
+</div>
+
+              
+              
+
+              
+            
+	

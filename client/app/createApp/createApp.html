@@ -1,0 +1,155 @@
+<div class="row" data-ng-init="load()">
+	<div class="col-md-4 "> </div>
+	<div class="col-md-4 text-center">
+		<form>
+			<div class="row">
+				<div class="col-md-12 text-center" style="padding-bottom: 5%">
+					Nom de l'application :
+					<input type="text" class="form-control" ng-model="vm.app.general.config['name']">
+				</div>
+
+        <div class="row">
+              <div class="col-md-12 text-center" style="padding-bottom: 5%" >
+               L'application à t'elle un menu ?
+
+                <div class="material-switch pull-right" >
+                  <input id="someSwitchOptionSuccess7" type="checkbox" ng-model="vm.app.general.config['menu']"/>
+                  <label for="someSwitchOptionSuccess7" class="label-success"></label>
+                </div>
+              </div>
+
+              <div class="col-md-12 text-center"  ng-show="vm.app.general.config['menu']">
+                 <button class="btn btn-rounded btn-space btn-primary" ngf-select="stockfile($file)"><i class="mdi mdi-upload xs-mr-5"></i><span>Choisir un fond pour le Menu</span></button></br>
+             
+	        <label> <img id ="picsource" ng-src="7_bg.jpg"></label>
+	        </div>
+   
+              <div class="col-md-12 text-center"  ng-show="!vm.app.general.config['menu']">
+              Lien de votre Application
+              <input type="text" class="form-control" id="url" ng-model="vm.app.general.config['url']">
+              </div>
+              
+      </div>
+				
+
+						</br>
+						<div class="row">
+							<div class="col-md-12 text-center">
+								<h1>Configuration de l'interface</h1>
+							</div>
+						</div>
+						</br>
+						<div class="row">
+							<div class="col-md-12 text-center" style="padding-bottom: 5%" >
+								Boutons Navigations
+								<div class="material-switch pull-right" >
+									<input id="someSwitchOptionSuccess3" name="someSwitchOption3" type="checkbox" ng-model="vm.app.general.config['navigation']"/>
+									<label for="someSwitchOptionSuccess3" class="label-success"></label>
+								</div>
+							</div>
+						</div>
+						<div class="row">
+							<div class="col-md-12 text-center" style="padding-bottom: 5%">
+								Bouton Accueil
+								<div class="material-switch pull-right" >
+									<input id="someSwitchOptionSuccess1" name="someSwitchOption1" type="checkbox" ng-model="vm.app.general.config['home']"/>
+									<label for="someSwitchOptionSuccess1" class="label-success" ></label>
+								</div>
+							</div>
+						</div>
+						<div class="row">
+							<div class="col-md-12 text-center" style="padding-bottom: 5%">
+								Bouton Impression
+								<div class="material-switch pull-right" >
+									<input id="someSwitchOptionSuccess2" name="someSwitchOption2" type="checkbox" ng-model=" vm.app.general.config['print']"/>
+									<label for="someSwitchOptionSuccess2" class="label-success" ></label>
+								</div>
+							</div>
+						</div>
+						<div class="row">
+							<div class="col-md-12 text-center" style="padding-bottom: 5%">
+								Bouton Actualiser
+								<div class="material-switch pull-right" >
+									<input id="someSwitchOptionSuccess4" name="someSwitchOption4" type="checkbox" ng-model=" vm.app.general.config['refresh']"/>
+									<label for="someSwitchOptionSuccess4" class="label-success" ></label>
+								</div>
+							</div>
+						</div>
+						<div class="row">
+							<div class="col-md-12 text-center" style="padding-bottom: 5%">
+								Bouton Clavier
+								<div class="material-switch pull-right" >
+									<input id="someSwitchOptionSuccess5" name="someSwitchOption5" type="checkbox" ng-model="vm.app.general.config['keyboard']"/>
+									<label for="someSwitchOptionSuccess5" class="label-success"></label>
+								</div>
+							</div>
+						</div>
+						<div id="colorbar" class="row ">
+							<label class="col-md-6" for="colorbar">Couleur barre navigation : </label>
+							<div class="col-md-6">
+								<input type="color" class="form-control primary color-picker col-md-4" ng-model="vm.app.general.config['barcolor']">
+							</div>
+              </br>
+						</div>
+						
+						<div id="loadcolorr" class="row" style="padding-top: 5%" >
+							<label class="col-md-6" for="loadcolor">Couleur barre Chargement : </label>
+							<div class="col-md-6">
+								<input type="color" class="form-control primary color-picker col-md-4" ng-model="vm.app.general.config['loadcolor']">
+							</div>
+              </br>
+						</div>
+						
+						<div id="colornav" class="row" style="padding-top: 5%"  ng-show="vm.app.general.config['navigation']">
+							<label class="col-md-6" for="colornav">Couleur boutons navigations : </label>
+							<div class="col-md-6">
+								<input type="color" class="form-control primary color-picker col-md-4" ng-model="vm.app.general.config['colornav']">
+							</div>
+              </br>
+						</div>
+						
+						<div id="colorhome" class="row"  style="padding-top: 5%" ng-show="vm.app.general.config['home']">
+							<label class="col-md-6" for="colorhome">Couleur bouton Accueil : </label>
+							<div class="col-md-6">
+								<input type="color" class="form-control primary color-picker col-md-4" ng-model="vm.app.general.config['colorhome']">
+							</div>
+              </br>
+						</div>
+						
+						<div id="colorprint" class="row" style="padding-top: 5%"  ng-show=" vm.app.general.config['print']">
+							<label class="col-md-6" for="colorprint">Couleur bouton Impression : </label>
+							<div class="col-md-6">
+								<input type="color" class="form-control primary color-picker col-md-4" ng-model="vm.app.general.config['colorprint']">
+							</div>
+              </br>
+						</div>
+						
+						<div id="colorrefresh" class="row"  style="padding-top: 5%"  ng-show=" vm.app.general.config['refresh']">
+							<label class="col-md-6" for="colorrefresh">Couleur bouton Actualiser : </label>
+							<div class="col-md-6">
+								<input type="color" class="form-control primary color-picker col-md-4" ng-model="vm.app.general.config['colorrefresh']">
+							</div>
+              </br>
+						</div>
+						
+						<div id="colorkeyboard" class="row" style="padding-top: 5%"  ng-show="vm.app.general.config['keyboard']">
+							<label class="col-md-6" for="colorkeyboard">Couleur bouton Clavier : </label>
+							<div class="col-md-6">
+								<input type="color" class="form-control primary color-picker col-md-4" ng-model="vm.app.general.config['colorkeyboard']">
+							</div>
+              </br>
+						</div>
+						</br>
+						
+						<div class="row">
+							<div class="col-md-12 text-center">
+								<button type="submit" ng-click="envoi()" class="btn btn-success ">Sauvegarder</button>
+							</div>
+						</div>
+					</div>
+</form>
+</div>
+</div>
+
+		
+		

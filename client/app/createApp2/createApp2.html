@@ -1,0 +1,52 @@
+<div class="row" data-ng-init="load()">
+	 <div class="col-md-12 text-center">
+  <h1>Configuration des Pages de l'application</h1>
+ 
+  </div>
+</div>
+<div class="row">
+   <div class="col-md-4 text-right">
+      <label>Nom de la Page : </label>
+  </div>
+  <div class="col-md-4 text-center">
+      <input type="text" class="form-control" id='nompage' ng-model="pagename">
+  </div>
+  <div class="col-md-4 text-left">
+   <button id="addPage" ng-click="ajouterpage()" class="btn btn-primary"> Ajouter une Page</button>
+  </div>
+</div>
+   
+ 
+	
+	
+<div class="row">
+  
+
+    <ul class="list-group user-list">
+    <li class="list-group-item" ng-repeat="page in vm.app.lespages">
+      <div class="user-info">
+        <div class="row ">
+          <div class="col-md-3 text-center">
+          <strong >Nom : {{page.nom}}</strong>
+          </div>
+          <div class="col-md-3 text-center">
+          <strong>Page n°{{page.numero}}</strong>
+          </div>
+          <div class="col-md-3 text-center">
+          <button id="customPage" ng-click="modifpage(page.numero)" class="btn btn-warning">Modifier la page</button>
+          </div>
+          <div class="col-md-3 text-center">
+          <button id="deletePage" ng-click="deletepage(page.numero)" class="btn btn-danger">Supprimer la page </button>
+          </div>
+
+        </div>
+      </div>
+     
+    </li>
+    </ul>
+
+</div>
+<div class="row" style="padding-top: 5%">
+<div class="col-md-12 text-center">
+<button ng-click="finish()" class="btn btn-success">Terminé ! </button>
+</div>
